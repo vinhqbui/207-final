@@ -1,0 +1,586 @@
+---
+title: "207 Final Project - Trading Analysis and Stock Price Prediction"
+output: pdf_document
+---
+
+```{r load packages, message=FALSE, warning=FALSE}
+rm(list = ls())
+library(tidyverse)
+library(magrittr)
+library(patchwork)
+
+library(lubridate)
+
+library(tsibble)
+library(feasts)
+install.packages('forecast')
+library(forecast)
+
+library(sandwich)
+library(lmtest)
+
+library(nycflights13)
+install.packages('blsR')
+library(blsR)
+
+install.packages('gridExtra')
+library(gridExtra)
+```
+
+Load in the Apple Stock Data
+```{r}
+apple_df <- read_csv("./data/apple_processed_data.csv")
+head(apple_df)
+```
+```{r}
+head(apple_df, 10)
+```
+
+```{r}
+summary(apple_df)
+```
+```{r}
+apple_tsib <- apple_df %>% as_tsibble(index=Date)
+apple_tsib
+
+
+apple_close_price_stock_plot <- apple_tsib |>
+  ggplot(aes(x=Date, y = close)) + 
+  geom_line() +
+  labs(x = "Date", y = "Closing Price",
+       title = "Apple Stock Closing Price from 2015-2024")
+apple_close_price_stock_plot
+```
+Aside from the clear non-stationarity, we also see the series having an increased variance throughout the right side of the plot.
+
+
+
+```{r}
+acf(apple_tsib$close, lag.max = 250, 
+    main = "Autocorrelation Function Plot of Past Values")
+```
+
+This plot reveals statistically significant correlations between past values of the closing price and current/future closing price values. The lack of "scalloped" shape in the autocorrelations does not suggest evidence of strong seasonality.
+
+Significant autocorrelations with lags past 200 hint at underlying trend (nonstationary), which rules out using only a Moving Average (MA) process.
+
+```{r}
+pacf(apple_tsib$close, lag.max = 50, 
+     main = "Partial Autocorrelation Function Plot of Past Values")
+```
+The partial autocorrelations drop drastically after the first partial autocorrelation and remain insignificant throughout.
+
+```{r}
+apple_tsib_month_year <-apple_tsib
+monthly_price_avg_tsib <- apple_tsib_month_year %>%
+index_by(yearMonth=yearmonth(Date)) %>% group_by(yearMonth) %>%
+summarise(mean_price=mean(close))
+
+monthly_price_avg_tsib
+
+monthly_price_avg_tsib$year <- year(monthly_price_avg_tsib$yearMonth)
+monthly_price_avg_tsib$month <- month(monthly_price_avg_tsib$yearMonth)
+monthly_price_avg <- as_tibble(monthly_price_avg_tsib) %>% 
+  select(mean_price, year, month)
+
+monthly_price_avg$year <- as.character(monthly_price_avg$year)
+
+
+options(repr.plot.width =15, repr.plot.height =15)
+
+monthly_avg_plot <- monthly_price_avg %>% 
+  ggplot(aes(x=month, y = mean_price, color= year)) + 
+  geom_line() + ylab("Monthly Mean Apple Stock Price") + 
+  scale_x_continuous(
+    breaks = seq_along(month.name),
+    labels = month.name
+  ) +
+  ggtitle('Monthly Mean Apple Stock Price by Year') + 
+  theme(text = element_text(size = 9))
+monthly_avg_plot
+```
+We see that Apple stock was at a low in 2016 before rising consistently from 2017 to 2023. We see that stocks rise slightly throughout the year in 2016. Stocks rose a little but fell slightly throughout 2015. Stocks rose gradually throughout 2017. Stocks experienced a rise but late fall in 2018. Stocks rose by almost 15% throughout 2019. Stocks rose dramatically in 2020. Overall, the 2021 stocks were higher than overall stock prices in any of the previous years since 2015. Stocks declined slightly throughout 2022. Finally, stocks rose significantly in 2023 until July, before falling through October. We cannot really see strong evidence of seasonality. However, we can later look at the components of the monthly average price to detect any seasonal component.
+
+
+
+```{r}
+
+january_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% 
+  select(mean_price, year, month) %>% filter(month==1)
+jan_apple_price_plot <- january_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean January Apple Stock Price") + 
+  ggtitle('Mean January Apple Stock Price') + 
+  geom_hline(yintercept = mean(january_monthly_price$mean_price), color="blue")
+jan_apple_price_plot
+
+feb_monthly_price <- monthly_price_avg_tsib %>% 
+  as_tibble() %>% select(mean_price, year, month) %>% 
+  filter(month==2)
+feb_apple_price_plot <- feb_monthly_price %>% 
+  ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean February Apple Stock Price") + 
+  ggtitle('Mean February Apple Stock Price') + 
+  geom_hline(yintercept = mean(feb_monthly_price$mean_price), color="blue")
+feb_apple_price_plot
+
+mar_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% 
+  select(mean_price, year, month) %>% filter(month==3)
+mar_apple_price_plot <- mar_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean March Apple Stock Price") + 
+  ggtitle('Mean March Apple Stock Price') + 
+  geom_hline(yintercept = mean(mar_monthly_price$mean_price), color="blue")
+mar_apple_price_plot
+
+apr_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% 
+  select(mean_price, year, month) %>% filter(month==4)
+apr_apple_price_plot <- apr_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean April Apple Stock Price") + 
+  ggtitle('Mean April Apple Stock Price') + 
+  geom_hline(yintercept = mean(apr_monthly_price$mean_price), color="blue")
+apr_apple_price_plot
+
+may_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% 
+  select(mean_price, year, month) %>% filter(month==5)
+may_apple_price_plot <- apr_monthly_price %>% 
+  ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean May Apple Stock Price") + 
+  ggtitle('Mean May Apple Stock Price') + 
+  geom_hline(yintercept = mean(may_monthly_price$mean_price), color="blue")
+may_apple_price_plot
+
+jun_monthly_price <- monthly_price_avg_tsib %>% 
+  as_tibble() %>% select(mean_price, year, month) %>% filter(month==6)
+jun_apple_price_plot <- jun_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean June Apple Stock Price") + 
+  ggtitle('Mean June Apple Stock Price') + 
+  geom_hline(yintercept = mean(jun_monthly_price$mean_price), color="blue")
+jun_apple_price_plot
+
+jul_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% 
+  select(mean_price, year, month) %>% filter(month==7)
+jul_apple_price_plot <- jul_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean July Apple Stock Price") + 
+  ggtitle('Mean July Apple Stock Price') + 
+  geom_hline(yintercept = mean(jul_monthly_price$mean_price), color="blue")
+jul_apple_price_plot
+
+aug_monthly_price <- monthly_price_avg_tsib %>% 
+  as_tibble() %>% select(mean_price, year, month) %>% filter(month==8)
+aug_apple_price_plot <- aug_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean August Apple Stock Price") + 
+  ggtitle('Mean August Apple Stock Price') + 
+  geom_hline(yintercept = mean(aug_monthly_price$mean_price), color="blue")
+aug_apple_price_plot
+
+sep_monthly_price <- monthly_price_avg_tsib %>% 
+  as_tibble() %>% select(mean_price, year, month) %>% filter(month==9)
+sep_apple_price_plot <- sep_monthly_price %>% 
+  ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean September Apple Stock Price") + 
+  ggtitle('Mean September Apple Stock Price') + 
+  geom_hline(yintercept = mean(aug_monthly_price$mean_price), color="blue")
+sep_apple_price_plot
+
+oct_monthly_price <- monthly_price_avg_tsib %>% 
+  as_tibble() %>% select(mean_price, year, month) %>% filter(month==10)
+oct_apple_price_plot <- oct_monthly_price %>% 
+  ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean October Apple Stock Price") + 
+  ggtitle('Mean October Apple Stock Price') + 
+  geom_hline(yintercept = mean(oct_monthly_price$mean_price), color="blue")
+oct_apple_price_plot
+
+nov_monthly_price <- monthly_price_avg_tsib %>% 
+  as_tibble() %>% select(mean_price, year, month) %>% filter(month==11)
+nov_apple_price_plot <- nov_monthly_price %>% 
+  ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean November Apple Stock Price") + 
+  ggtitle('Mean November Apple Stock Price') + 
+  geom_hline(yintercept = mean(nov_monthly_price$mean_price), color="blue")
+nov_apple_price_plot
+
+dec_monthly_price <- monthly_price_avg_tsib %>% 
+  as_tibble() %>% select(mean_price, year, month) %>% filter(month==12)
+dec_apple_price_plot <- dec_monthly_price %>% 
+  ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean December Apple Stock Price") + 
+  ggtitle('Mean December Apple Stock Price') + 
+  geom_hline(yintercept = mean(dec_monthly_price$mean_price), color="blue")
+dec_apple_price_plot
+
+
+grid.arrange(jan_apple_price_plot, feb_apple_price_plot, mar_apple_price_plot, apr_apple_price_plot, nrow=2)
+```
+We see that average monthly Apple stock prices rise slightly from January to April.
+
+```{r}
+grid.arrange(may_apple_price_plot, jun_apple_price_plot, 
+             jul_apple_price_plot, aug_apple_price_plot, nrow=2)
+```
+We see that average monthly Apple stock prices dip slightly from May to June but bump up in July and August.
+
+
+```{r}
+grid.arrange(sep_apple_price_plot, oct_apple_price_plot, 
+             nov_apple_price_plot, dec_apple_price_plot, nrow=2)
+```
+Average monthly Apple stock prices remain high relative to other months. Stock prices dip slightly in November and December.
+
+
+```{r}
+monthly_price_avg_tsib |>
+  gg_season(mean_price, labels = "both")
+```
+
+```{r}
+
+monthly_price_avg_tsib |>
+  gg_lag(mean_price, lags=1:24, geom = "point") +
+  labs(x = "lag(Monthly Mean Price, k)")
+```
+
+```{r}
+monthly_price_avg_tsib
+monthly_price_avg_tsib |> ggplot(aes(x=yearMonth, y = mean_price)) + 
+  geom_line()
+  
+apple_tsib
+
+dcmp <- monthly_price_avg_tsib |> 
+  model(stl = STL(mean_price))
+components(dcmp)
+components(dcmp) |> autoplot()
+```
+There seems to be a peak in monthly average stock prices every middle of every year (around June), with peaks increasing and troughs decreasing (increasing variability) as we move from left to right.
+
+```{r}
+monthly_price_avg_tsib |>
+  gg_season(mean_price, period = "year")
+```
+```{r}
+monthly_price_avg_tsib
+monthly_price_avg_tsib |> ggplot(aes(x=yearMonth, y = mean_price)) + 
+  geom_line()
+```
+To stabilize the variance, we apply a Box-Cox transformation (log).
+
+```{r}
+monthly_price_avg_tsib_transformed <- monthly_price_avg_tsib %>% 
+  mutate(mean_price = log(mean_price))
+monthly_price_avg_tsib_transformed <- monthly_price_avg_tsib_transformed %>% 
+  select(mean_price)
+
+dcmp <- monthly_price_avg_tsib_transformed |> 
+  model(stl = STL(mean_price))
+components(dcmp)
+components(dcmp) |> autoplot()
+```
+
+
+```{r}
+
+
+monthly_price_avg_tsib_transformed$is_up <- append(diff(monthly_price_avg_tsib_transformed$mean_price) > 0, FALSE)
+monthly_price_avg_tsib_transformed <- monthly_price_avg_tsib_transformed %>% mutate(is_up = case_when(is_up == TRUE ~ 1, TRUE ~ 0))
+
+
+monthly_price_avg_tsib_train <- subset(monthly_price_avg_tsib_transformed, 
+                                       yearMonth < yearmonth(as.Date("2022-01-01")))
+monthly_price_avg_tsib_test <- subset(monthly_price_avg_tsib_transformed, 
+                                      yearMonth >= yearmonth(as.Date("2022-01-01")))
+```
+
+
+```{r}
+monthly_price_avg_tsib_train
+```
+
+```{r}
+monthly_price_avg_tsib_train %>% autoplot(mean_price)
+```
+
+Due to the observed non-stationarity and seasonality with period 12, we take a seasonal difference.
+
+```{r}
+monthly_price_avg_tsib_train |>
+  gg_tsdisplay(difference(mean_price, 12),
+               plot_type='partial', lag=36) +
+  labs(title="Seasonally differenced", y="")
+```
+The series is still non-stationary, and the formal KPSS test below confirms this.
+
+```{r}
+monthly_price_avg_tsib_train %>% mutate(diff_log = difference(mean_price, 12)) %>% features(diff_log, unitroot_kpss)
+```
+We take a further first difference.
+
+```{r}
+monthly_price_avg_tsib_train |>
+  gg_tsdisplay(difference(mean_price, 12) |> difference(),
+               plot_type='partial', lag=36) +
+  labs(title = "Double differenced", y="")
+```
+
+We can see now that the data are closer to stationary, despite a one or two significant lags.
+
+A formal test of stationarity using KPSS unit root test is applied below, and the insignificant result implies that we do not reject the null hypothesis that the differenced series is stationary. Hence, the series is stationary.
+
+```{r}
+monthly_price_avg_tsib_train %>% mutate(diff_log = difference(mean_price, 12)) %>% mutate(diff_log = difference(diff_log)) %>% features(diff_log, unitroot_kpss)
+```
+
+
+
+Models to use: NAIVE, ARIMA, SARIMA
+
+We'll start off with a simple forecasting method - the NAIVE method. Using this method, we set the forecasts to be the value of the last observation, a method that works surprisingly well in economics and finance.
+
+
+```{r}
+install.packages('forecast')
+library(forecast)
+library(fable)
+
+model_comp <- monthly_price_avg_tsib_train %>%
+  model(model_1 = ARIMA(mean_price ~ 0 + pdq(3, 1, 0) + PDQ(0, 1, 0)),
+        model_2 = ARIMA(mean_price ~ 0 + pdq(0,1,0) + PDQ(1, 1, 0)),
+        auto_aic_mod = ARIMA(mean_price ~ 0 + pdq(1:10, 1:2, 1:10) + 
+                                                  PDQ(1:2,0:1,0), ic="aic", 
+                                                  stepwise=F, greedy=F),
+        auto_bic_mod = ARIMA(mean_price ~ pdq(0:10, 1:2, 0:10) + 
+                                                  PDQ(0:2,0:1,0), ic="bic", 
+                                                  stepwise=F, greedy=F),
+        random_walk_mod = NAIVE(mean_price)
+        )
+model_comp
+```
+
+
+```{r}
+model_comp %>%
+  augment() %>%
+  ACF(.resid) %>%
+  autoplot()
+```
+
+
+```{r}
+model_comp %>%
+  augment() %>%
+  filter(.model == "model_1") %>%
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag=10, type="Ljung-Box")
+```
+```{r}
+model_comp %>%
+  augment() %>%
+  filter(.model == "model_2") %>%
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag=10, type="Ljung-Box")
+```
+```{r}
+model_comp %>%
+  augment() %>%
+  filter(.model == "auto_aic_mod") %>%
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag=10, type="Ljung-Box")
+```
+
+```{r}
+model_comp %>%
+  augment() %>%
+  filter(.model == "auto_bic_mod") %>%
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag=10, type="Ljung-Box")
+```
+
+```{r}
+model_comp %>%
+  augment() %>%
+  filter(.model == "random_walk_mod") %>%
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag=10, type="Ljung-Box")
+```
+
+```{r}
+new_apple_stock <- new_data(monthly_price_avg_tsib_train, 22)
+new_apple_stock
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "model_1") %>% autoplot(monthly_price_avg_tsib_train) + 
+  labs(x = "Date", y = "Logged Apple Stock Price",
+       title = "Forecasts of Log Apple Stock 
+       Prices Along with Historical Data (Model 1)")
+```
+```{r}
+reference_data <- monthly_price_avg_tsib_train %>% mutate(mean_price = exp(mean_price))
+reference_data
+
+reference_years <- reference_data %>% select(yearMonth)
+reference_years
+new_apple_stock
+
+```
+We need to use fable object before autoplot when making a plots of forecasts along with historical data.
+When we transform log values back to their original values, we must also back-transform the probability distribution that is created in the fable object, as that probability distribution is centered around the log transformed forecast value.
+
+```{r}
+
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "model_1") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
+  autoplot(reference_data) + labs(x = "Date", 
+                                  y = "Apple Stock Price",
+       title = "Forecasts of Apple 
+       Stock Prices Along with Historical Data (Model 1)")
+```
+
+```{r}
+model_comp
+
+
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "model_1") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price))
+```
+
+
+```{r}
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "model_2") %>% 
+  autoplot(monthly_price_avg_tsib_train) + 
+  labs(x = "Date", y = "Logged Apple Stock Price",
+       title = "Forecasts of Log Apple Stock 
+       Prices Along with Historical Data (Model 2)")
+```
+```{r}
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "model_2") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
+  autoplot(reference_data) + labs(x = "Date", y = "Apple Stock Price",
+       title = "Forecasts of Apple Stock Prices 
+       Along with Historical Data (Model 2)")
+```
+```{r}
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "auto_aic_mod") %>% 
+  autoplot(monthly_price_avg_tsib_train) + labs(x = "Date", 
+                                                y = "Logged Apple Stock Price",
+       title = "Forecasts of Log Apple Stock Prices 
+       Along with Historical Data (Best Model by AIC)")
+```
+
+```{r}
+
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "auto_aic_mod") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
+  autoplot(reference_data) + labs(x = "Date", y = "Apple Stock Price",
+       title = "Forecasts of Apple Stock Prices 
+       Along with Historical Data (Best Model by AIC)")
+```
+```{r}
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "auto_bic_mod") %>% 
+  autoplot(monthly_price_avg_tsib_train) + 
+  labs(x = "Date", y = "Logged Apple Stock Price",
+       title = "Forecasts of Log Apple Stock Prices 
+       Along with Historical Data (Best Model by BIC)")
+```
+
+
+```{r}
+
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "auto_bic_mod") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
+  autoplot(reference_data) + labs(x = "Date", y = "Apple Stock Price",
+       title = "Forecasts of Apple Stock Prices Along 
+       with Historical Data (Best Model by BIC)")
+```
+```{r}
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "random_walk_mod") %>% 
+  autoplot(monthly_price_avg_tsib_train) + 
+  labs(x = "Date", y = "Logged Apple Stock Price",
+       title = "Forecasts of Log Apple Stock Prices 
+       Along with Historical Data (Random Walk Model)")
+```
+
+```{r}
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "random_walk_mod") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
+  autoplot(reference_data) + labs(x = "Date", y = "Apple Stock Price",
+       title = "Forecasts of Apple Stock Prices Along 
+       with Historical Data (Random Walk Model)")
+```
+
+```{r}
+model_forecasts <- model_comp %>% forecast(new_apple_stock, h=22) %>%
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price))
+model_forecasts
+```
+
+```{r}
+model_comp %>% forecast(reference_years, h = 84) %>% 
+  filter(.model == "auto_aic_mod") %>% 
+  autoplot(monthly_price_avg_tsib_train) + 
+  labs(x = "Date", y = "Logged Apple Stock Price",
+       title = "Forecasts of Log Apple Stock Prices 
+       Along with Historical Data (Best Model by AIC)")
+
+
+```
+
+
+
+```{r}
+
+monthly_price_avg_tsib %>% autoplot(mean_price)
+
+comparison_data <- monthly_price_avg_tsib %>% select(mean_price)
+comparison_data
+accuracy(model_forecasts, comparison_data)
+```
+
+
+```{r}
+
+aic_mod_forecasts
+monthly_price_avg_tsib_train
+```
+
+
+
+```{r}
+future_compare <- monthly_price_avg_tsib_test %>% mutate(mean_price = exp(mean_price))
+append(as.numeric(diff(future_compare$mean_price) > 0), 0) == future_compare$is_up
+
+aic_mod_forecasts <- model_forecasts %>% filter(.model == "auto_aic_mod") %>% as_tibble() %>% select(yearMonth, .mean)
+aic_mod_forecasts$is_up <- as.numeric(append(diff(aic_mod_forecasts$.mean) > 0, 0))
+aic_mod_forecasts$is_up
+sum(aic_mod_forecasts$is_up == future_compare$is_up) / length(aic_mod_forecasts$is_up)
+
+```
+
+
+
+```{r}
+model_forecasts %>% filter(.model == "random_walk_mod")
+
+rand_walk_mod_forecasts <- model_forecasts %>% filter(.model == "random_walk_mod") %>% as_tibble() %>% select(yearMonth, .mean)
+rand_walk_mod_forecasts$is_up <- as.numeric(append(diff(rand_walk_mod_forecasts$.mean) > 0, 0))
+rand_walk_mod_forecasts$is_up
+sum(rand_walk_mod_forecasts$is_up == future_compare$is_up) / length(rand_walk_mod_forecasts$is_up)
+
+```
+
+
+
+
+
