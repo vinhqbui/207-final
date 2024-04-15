@@ -24,9 +24,9 @@ Classical Machine Learning Models: This category includes models like Linear Reg
 
 Modern Machine Learning Models: Encompassing advanced techniques such as Neural Networks and Deep Learning, including LSTM (Long Short-Term Memory) networks and convolutional models designed for sequence prediction. These models can capture complex patterns in large datasets, potentially offering superior predictive performance on challenging forecasting tasks.
 
-
-
-
+# Note:
+- prophet.ipynb: This is the jupyter notebook that I use to predict stocks using Prophet python packages, but I do not have time to do more throughout implementations.
+- accuracy.ipynb: For calculating and comparing the model's performances
 
 
 
