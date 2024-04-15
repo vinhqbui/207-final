@@ -1,0 +1,449 @@
+---
+title: "207 Final Project - Trading Analysis and Stock Price Prediction"
+output: pdf_document
+---
+
+```{r load packages, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(magrittr)
+library(patchwork)
+
+library(lubridate)
+
+library(tsibble)
+library(feasts)
+install.packages('forecast')
+library(forecast)
+
+library(sandwich)
+library(lmtest)
+
+library(nycflights13)
+install.packages('blsR')
+library(blsR)
+
+install.packages('gridExtra')
+library(gridExtra)
+```
+
+Load in the Tesla Stock Data
+```{r}
+tesla_df <- read_csv("tesla_processed_data.csv")
+head(tesla_df)
+```
+```{r}
+summary(tesla_df)
+```
+```{r}
+tesla_tsib <- tesla_df %>% as_tsibble(index=Date)
+tesla_tsib
+
+
+tesla_close_price_stock_plot <- tesla_tsib |>
+  ggplot(aes(x=Date, y = close)) + 
+  geom_line() +
+  labs(x = "Date", y = "Closing Price",
+       title = "tesla Stock Closing Price from 2015-2024")
+tesla_close_price_stock_plot
+```
+Clear non-stationarity, and increased variance throughout the right side of the plot.
+
+
+
+```{r}
+acf(tesla_tsib$close, lag.max = 250, main = "Autocorrelation Function Plot of Past Values")
+```
+
+
+```{r}
+pacf(tesla_tsib$close, lag.max = 50, main = "Partial Autocorrelation Function Plot of Past Values")
+```
+The partial autocorrelations drop drastically after the first partial autocorrelation and remain insignificant throughout.
+
+```{r}
+head(tesla_tsib)
+tesla_tsib_month_year <-tesla_tsib
+
+monthly_price_avg_tsib <- tesla_tsib_month_year %>% index_by(yearMonth=yearmonth(Date)) %>% group_by(yearMonth) %>% summarise(mean_price=mean(close))
+monthly_price_avg_tsib$year <- year(monthly_price_avg_tsib$yearMonth)
+monthly_price_avg_tsib$month <- month(monthly_price_avg_tsib$yearMonth)
+monthly_price_avg <- as_tibble(monthly_price_avg_tsib) %>% select(mean_price, year, month)
+
+monthly_price_avg$year <- as.character(monthly_price_avg$year)
+
+monthly_price_avg
+
+
+options(repr.plot.width =15, repr.plot.height =15)
+
+monthly_avg_plot <- monthly_price_avg %>% ggplot(aes(x=month, y = mean_price, color= year)) + 
+  geom_line() + ylab("Monthly Mean tesla Stock Price") + 
+  scale_x_continuous(
+    breaks = seq_along(month.name),
+    labels = month.name
+  ) +
+  ggtitle('Monthly Mean tesla Stock Price by Year') + theme(text = element_text(size = 9))
+monthly_avg_plot
+```
+We see that tesla stock was at a low in 2016 before rising consistently from 2017 to 2020. We see that stocks fall at the end of 2021 and goes down in 2022. We cannot really see strong evidence of seasonality. However, we can later look at the components of the monthly average price to detect any seasonal component.
+
+
+
+```{r}
+
+january_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==1)
+jan_tesla_price_plot <- january_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean January tesla Stock Price") + 
+  ggtitle('Mean January tesla Stock Price') + geom_hline(yintercept = mean(january_monthly_price$mean_price), color="blue")
+jan_tesla_price_plot
+
+feb_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==2)
+feb_tesla_price_plot <- feb_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean February tesla Stock Price") + 
+  ggtitle('Mean February tesla Stock Price') + geom_hline(yintercept = mean(feb_monthly_price$mean_price), color="blue")
+feb_tesla_price_plot
+
+mar_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==3)
+mar_tesla_price_plot <- mar_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean March tesla Stock Price") + 
+  ggtitle('Mean March tesla Stock Price') + geom_hline(yintercept = mean(mar_monthly_price$mean_price), color="blue")
+mar_tesla_price_plot
+
+apr_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==4)
+apr_tesla_price_plot <- apr_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean April tesla Stock Price") + 
+  ggtitle('Mean April tesla Stock Price') + geom_hline(yintercept = mean(apr_monthly_price$mean_price), color="blue")
+apr_tesla_price_plot
+
+may_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==5)
+may_tesla_price_plot <- apr_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean May tesla Stock Price") + 
+  ggtitle('Mean May tesla Stock Price') + geom_hline(yintercept = mean(may_monthly_price$mean_price), color="blue")
+may_tesla_price_plot
+
+jun_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==6)
+jun_tesla_price_plot <- jun_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean June tesla Stock Price") + 
+  ggtitle('Mean June tesla Stock Price') + geom_hline(yintercept = mean(jun_monthly_price$mean_price), color="blue")
+jun_tesla_price_plot
+
+jul_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==7)
+jul_tesla_price_plot <- jul_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean July tesla Stock Price") + 
+  ggtitle('Mean July tesla Stock Price') + geom_hline(yintercept = mean(jul_monthly_price$mean_price), color="blue")
+jul_tesla_price_plot
+
+aug_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==8)
+aug_tesla_price_plot <- aug_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean August tesla Stock Price") + 
+  ggtitle('Mean August tesla Stock Price') + geom_hline(yintercept = mean(aug_monthly_price$mean_price), color="blue")
+aug_tesla_price_plot
+
+sep_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==9)
+sep_tesla_price_plot <- sep_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean September tesla Stock Price") + 
+  ggtitle('Mean September tesla Stock Price') + geom_hline(yintercept = mean(aug_monthly_price$mean_price), color="blue")
+sep_tesla_price_plot
+
+oct_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==10)
+oct_tesla_price_plot <- oct_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean October tesla Stock Price") + 
+  ggtitle('Mean October tesla Stock Price') + geom_hline(yintercept = mean(oct_monthly_price$mean_price), color="blue")
+oct_tesla_price_plot
+
+nov_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==11)
+nov_tesla_price_plot <- nov_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean November tesla Stock Price") + 
+  ggtitle('Mean November tesla Stock Price') + geom_hline(yintercept = mean(nov_monthly_price$mean_price), color="blue")
+nov_tesla_price_plot
+
+dec_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% select(mean_price, year, month) %>% filter(month==12)
+dec_tesla_price_plot <- dec_monthly_price %>% ggplot(aes(x=year, y = mean_price)) + 
+  geom_line() + ylab("Mean December tesla Stock Price") + 
+  ggtitle('Mean December tesla Stock Price') + geom_hline(yintercept = mean(dec_monthly_price$mean_price), color="blue")
+dec_tesla_price_plot
+
+
+grid.arrange(jan_tesla_price_plot, feb_tesla_price_plot, mar_tesla_price_plot, apr_tesla_price_plot, nrow=2)
+```
+We see that average monthly tesla stock prices rise slightly from January to April, especially in 2022, then drop off afterward.
+
+```{r}
+grid.arrange(may_tesla_price_plot, jun_tesla_price_plot, jul_tesla_price_plot, aug_tesla_price_plot, nrow=2)
+```
+Similar story here.
+
+
+```{r}
+grid.arrange(sep_tesla_price_plot, oct_tesla_price_plot, nov_tesla_price_plot, dec_tesla_price_plot, nrow=2)
+```
+Same pattern but the peak appears in 2021.
+
+```{r}
+monthly_price_avg_tsib |>
+  gg_season(mean_price, labels = "both")
+```
+
+```{r}
+
+monthly_price_avg_tsib |>
+  gg_lag(mean_price, lags=1:24, geom = "point") +
+  labs(x = "lag(Monthly Mean Price, k)")
+```
+
+```{r}
+monthly_price_avg_tsib
+monthly_price_avg_tsib |> ggplot(aes(x=yearMonth, y = mean_price)) + 
+  geom_line()
+  
+tesla_tsib
+
+dcmp <- monthly_price_avg_tsib |> 
+  model(stl = STL(mean_price))
+components(dcmp)
+components(dcmp) |> autoplot()
+```
+There seems to be a peak in monthly average stock prices every starts of every year (around January), with peaks increasing and troughs decreasing (increasing variability) as we move from left to right.
+
+```{r}
+monthly_price_avg_tsib |>
+  gg_season(mean_price, period = "year")
+```
+```{r}
+monthly_price_avg_tsib
+monthly_price_avg_tsib |> ggplot(aes(x=yearMonth, y = mean_price)) + 
+  geom_line()
+```
+To stabilize the variance, we apply a Box-Cox transformation (log).
+
+```{r}
+monthly_price_avg_tsib_transformed <- monthly_price_avg_tsib %>% mutate(mean_price = log(mean_price))
+monthly_price_avg_tsib_transformed <- monthly_price_avg_tsib_transformed %>% select(mean_price)
+
+dcmp <- monthly_price_avg_tsib_transformed |> 
+  model(stl = STL(mean_price))
+components(dcmp)
+components(dcmp) |> autoplot()
+```
+
+
+```{r}
+monthly_price_avg_tsib_train <- subset(monthly_price_avg_tsib_transformed, yearMonth < yearmonth(as.Date("2022-01-01")))
+monthly_price_avg_tsib_test <- subset(monthly_price_avg_tsib_transformed, yearMonth >= yearmonth(as.Date("2022-01-01")))
+```
+
+```{r}
+monthly_price_avg_tsib_train %>% autoplot(mean_price)
+```
+
+Due to the observed non-stationarity and seasonality with period 12, we take a seasonal difference.
+
+```{r}
+monthly_price_avg_tsib_train |>
+  gg_tsdisplay(difference(mean_price, 12),
+               plot_type='partial', lag=36) +
+  labs(title="Seasonally differenced", y="")
+```
+The series is still non-stationary, so we take a further first difference.
+
+
+```{r}
+monthly_price_avg_tsib_train |>
+  gg_tsdisplay(difference(mean_price, 12) |> difference(),
+               plot_type='partial', lag=36) +
+  labs(title = "Double differenced", y="")
+```
+
+We can see now that the data are closer to stationary, despite a one or two significant lags.
+
+Models to use: NAIVE, AR, SARIMA
+
+We'll start off with a simple forecasting method - the NAIVE method. Using this method, we set the forecasts to be the value of the last observation, a method that works surprisingly well in economics and finance.
+
+Then, we compare them against a pure AR and a SARIMA model chosen by best AIC.
+
+
+```{r}
+install.packages('forecast')
+library(forecast)
+library(fable)
+
+model_comp <- monthly_price_avg_tsib_train %>%
+  model(model_1 = ARIMA(mean_price ~ 0 + pdq(3, 0, 0) + PDQ(0, 0, 0)),
+        model_2 = ARIMA(mean_price ~ 0 + pdq(0,1,0) + PDQ(1, 1, 0)),
+        auto_aic_mod = ARIMA(mean_price ~ 0 + pdq(1:10, 1:2, 1:10) + 
+                                                  PDQ(1:2,0:1,0), ic="aic", 
+                                                  stepwise=F, greedy=F),
+        auto_bic_mod = ARIMA(mean_price ~ pdq(0:10, 1:2, 0:10) + 
+                                                  PDQ(0:2,0:1,0), ic="bic", 
+                                                  stepwise=F, greedy=F),
+        random_walk_mod = NAIVE(mean_price)
+        )
+model_comp
+```
+
+
+```{r}
+model_comp %>%
+  augment() %>%
+  ACF(.resid) %>%
+  autoplot()
+```
+
+
+```{r}
+model_comp %>%
+  augment() %>%
+  filter(.model == "model_1") %>%
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag=10, type="Ljung-Box")
+```
+```{r}
+model_comp %>%
+  augment() %>%
+  filter(.model == "model_2") %>%
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag=10, type="Ljung-Box")
+```
+```{r}
+model_comp %>%
+  augment() %>%
+  filter(.model == "auto_aic_mod") %>%
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag=10, type="Ljung-Box")
+```
+
+```{r}
+model_comp %>%
+  augment() %>%
+  filter(.model == "auto_bic_mod") %>%
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag=10, type="Ljung-Box")
+```
+
+```{r}
+model_comp %>%
+  augment() %>%
+  filter(.model == "random_walk_mod") %>%
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag=10, type="Ljung-Box")
+```
+
+```{r}
+new_tesla_stock <- new_data(monthly_price_avg_tsib_train, 4)
+new_tesla_stock
+model_comp %>% forecast(new_tesla_stock, h=4) %>% 
+  filter(.model == "model_1") %>% autoplot(monthly_price_avg_tsib_train) + labs(x = "Date", y = "Logged tesla Stock Price",
+       title = "Forecasts of Log tesla Stock Prices Along with Historical Data (Model 1)")
+```
+```{r}
+reference_data <- monthly_price_avg_tsib_train %>% mutate(mean_price = exp(mean_price))
+reference_data
+
+```
+We need to use fable object before autoplot when making a plots of forecasts along with historical data.
+When we transform log values back to their original values, we must also back-transform the probability distribution that is created in the fable object, as that probability distribution is centered around the log transformed forecast value.
+
+```{r}
+
+model_comp %>% forecast(new_tesla_stock, h=4) %>% 
+  filter(.model == "model_1") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
+  autoplot(reference_data) + labs(x = "Date", y = "tesla Stock Price",
+       title = "Forecasts of tesla Stock Prices Along with Historical Data (Model 1)")
+```
+
+```{r}
+model_comp %>% forecast(new_tesla_stock, h=4) %>% 
+  filter(.model == "model_2") %>% autoplot(monthly_price_avg_tsib_train) + labs(x = "Date", y = "Logged tesla Stock Price",
+       title = "Forecasts of Log tesla Stock Prices Along with Historical Data (Model 2)")
+```
+```{r}
+model_comp %>% forecast(new_tesla_stock, h=4) %>% 
+  filter(.model == "model_2") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
+  autoplot(reference_data) + labs(x = "Date", y = "tesla Stock Price",
+       title = "Forecasts of tesla Stock Prices Along with Historical Data (Model 2)")
+```
+```{r}
+model_comp %>% forecast(new_tesla_stock, h=4) %>% 
+  filter(.model == "auto_aic_mod") %>% autoplot(monthly_price_avg_tsib_train) + labs(x = "Date", y = "Logged tesla Stock Price",
+       title = "Forecasts of Log tesla Stock Prices Along with Historical Data (Best Model by AIC)")
+```
+
+```{r}
+
+model_comp %>% forecast(new_tesla_stock, h=4) %>% 
+  filter(.model == "auto_aic_mod") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
+  autoplot(reference_data) + labs(x = "Date", y = "tesla Stock Price",
+       title = "Forecasts of tesla Stock Prices Along with Historical Data (Best Model by AIC)")
+```
+```{r}
+model_comp %>% forecast(new_tesla_stock, h=4) %>% 
+  filter(.model == "auto_bic_mod") %>% autoplot(monthly_price_avg_tsib_train) + labs(x = "Date", y = "Logged tesla Stock Price",
+       title = "Forecasts of Log tesla Stock Prices Along with Historical Data (Best Model by BIC)")
+```
+
+
+```{r}
+
+model_comp %>% forecast(new_tesla_stock, h=4) %>% 
+  filter(.model == "auto_bic_mod") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
+  autoplot(reference_data) + labs(x = "Date", y = "tesla Stock Price",
+       title = "Forecasts of tesla Stock Prices Along with Historical Data (Best Model by BIC)")
+```
+```{r}
+model_comp %>% forecast(new_tesla_stock, h=4) %>% 
+  filter(.model == "random_walk_mod") %>% autoplot(monthly_price_avg_tsib_train) + labs(x = "Date", y = "Logged tesla Stock Price",
+       title = "Forecasts of Log tesla Stock Prices Along with Historical Data (Random Walk Model)")
+```
+
+```{r}
+model_comp %>% forecast(new_tesla_stock, h=4) %>% 
+  filter(.model == "random_walk_mod") %>% 
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
+  autoplot(reference_data) + labs(x = "Date", y = "tesla Stock Price",
+       title = "Forecasts of tesla Stock Prices Along with Historical Data (Random Walk Model)")
+```
+
+```{r}
+model_forecasts <- model_comp %>% forecast(new_tesla_stock, h=4) %>%
+  mutate(.mean = exp(.mean), mean_price = exp(mean_price))
+model_forecasts
+```
+
+```{r}
+
+comparison_data <- monthly_price_avg_tsib %>% select(mean_price)
+comparison_data
+accuracy(model_forecasts, comparison_data)
+```
+
+```{r}
+future_compare <- monthly_price_avg_tsib_test %>% mutate(mean_price = exp(mean_price))
+future_compare$is_up <- append(as.numeric(diff(future_compare$mean_price) > 0), 0)
+future_compare <- future_compare %>% slice(1:4)
+
+
+```
+
+```{r}
+bic <- model_forecasts %>% filter(.model == "auto_bic_mod") %>% as_tsibble()
+bic$is_up <- as.numeric(append(diff(bic$.mean) > 0, 0))
+```
+
+```{r}
+sum(bic$is_up == future_compare$is_up) / length(bic$is_up)
+```
+We get a preliminary accuracy of 0.75 when forecasting 4 months ahead.
+
+
+
+
