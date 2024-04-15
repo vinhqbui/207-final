@@ -27,6 +27,8 @@ Modern Machine Learning Models: Encompassing advanced techniques such as Neural 
 # Note:
 - prophet.ipynb: This is the jupyter notebook that I use to predict stocks using Prophet python packages, but I do not have time to do more throughout implementations.
 - accuracy.ipynb: For calculating and comparing the model's performances
+- tesla.Rmd: Time series analysis for Tesla data
+- 
 
 
 
