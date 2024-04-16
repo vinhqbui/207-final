@@ -270,7 +270,7 @@ library(fable)
 
 model_comp <- monthly_price_avg_tsib_train %>%
   model(model_1 = ARIMA(mean_price ~ 0 + pdq(3, 0, 0) + PDQ(0, 0, 0)),
-        model_2 = ARIMA(mean_price ~ 0 + pdq(0,1,0) + PDQ(1, 1, 0)),
+        model_2 = ARIMA(mean_price ~ 0 + pdq(1,1,1) + PDQ(1, 1, 0)),
         auto_aic_mod = ARIMA(mean_price ~ 0 + pdq(1:10, 1:2, 1:10) + 
                                                   PDQ(1:2,0:1,0), ic="aic", 
                                                   stepwise=F, greedy=F),
