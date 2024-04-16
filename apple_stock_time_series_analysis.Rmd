@@ -29,17 +29,17 @@ library(gridExtra)
 
 Load in the Apple Stock Data
 ```{r}
-apple_df <- read_csv("./data/apple_processed_data.csv")
+apple_df <- read_csv("apple_processed_data.csv")
 head(apple_df)
 ```
 ```{r}
 head(apple_df, 10)
 ```
 
-```{r}
+```{r echo=TRUE}
 summary(apple_df)
 ```
-```{r}
+```{r echo=TRUE}
 apple_tsib <- apple_df %>% as_tsibble(index=Date)
 apple_tsib
 
@@ -55,7 +55,7 @@ Aside from the clear non-stationarity, we also see the series having an increase
 
 
 
-```{r}
+```{r echo=TRUE}
 acf(apple_tsib$close, lag.max = 250, 
     main = "Autocorrelation Function Plot of Past Values")
 ```
@@ -64,13 +64,13 @@ This plot reveals statistically significant correlations between past values of 
 
 Significant autocorrelations with lags past 200 hint at underlying trend (nonstationary), which rules out using only a Moving Average (MA) process.
 
-```{r}
+```{r echo=TRUE}
 pacf(apple_tsib$close, lag.max = 50, 
      main = "Partial Autocorrelation Function Plot of Past Values")
 ```
 The partial autocorrelations drop drastically after the first partial autocorrelation and remain insignificant throughout.
 
-```{r}
+```{r echo=TRUE}
 apple_tsib_month_year <-apple_tsib
 monthly_price_avg_tsib <- apple_tsib_month_year %>%
 index_by(yearMonth=yearmonth(Date)) %>% group_by(yearMonth) %>%
@@ -103,7 +103,7 @@ We see that Apple stock was at a low in 2016 before rising consistently from 201
 
 
 
-```{r}
+```{r echo=TRUE}
 
 january_monthly_price <- monthly_price_avg_tsib %>% as_tibble() %>% 
   select(mean_price, year, month) %>% filter(month==1)
@@ -213,33 +213,33 @@ grid.arrange(jan_apple_price_plot, feb_apple_price_plot, mar_apple_price_plot, a
 ```
 We see that average monthly Apple stock prices rise slightly from January to April.
 
-```{r}
+```{r echo=TRUE}
 grid.arrange(may_apple_price_plot, jun_apple_price_plot, 
              jul_apple_price_plot, aug_apple_price_plot, nrow=2)
 ```
 We see that average monthly Apple stock prices dip slightly from May to June but bump up in July and August.
 
 
-```{r}
+```{r echo=TRUE}
 grid.arrange(sep_apple_price_plot, oct_apple_price_plot, 
              nov_apple_price_plot, dec_apple_price_plot, nrow=2)
 ```
 Average monthly Apple stock prices remain high relative to other months. Stock prices dip slightly in November and December.
 
 
-```{r}
+```{r echo=TRUE}
 monthly_price_avg_tsib |>
   gg_season(mean_price, labels = "both")
 ```
 
-```{r}
+```{r echo=TRUE}
 
 monthly_price_avg_tsib |>
   gg_lag(mean_price, lags=1:24, geom = "point") +
   labs(x = "lag(Monthly Mean Price, k)")
 ```
 
-```{r}
+```{r echo=TRUE}
 monthly_price_avg_tsib
 monthly_price_avg_tsib |> ggplot(aes(x=yearMonth, y = mean_price)) + 
   geom_line()
@@ -253,18 +253,18 @@ components(dcmp) |> autoplot()
 ```
 There seems to be a peak in monthly average stock prices every middle of every year (around June), with peaks increasing and troughs decreasing (increasing variability) as we move from left to right.
 
-```{r}
+```{r echo=TRUE}
 monthly_price_avg_tsib |>
   gg_season(mean_price, period = "year")
 ```
-```{r}
+```{r echo=TRUE}
 monthly_price_avg_tsib
 monthly_price_avg_tsib |> ggplot(aes(x=yearMonth, y = mean_price)) + 
   geom_line()
 ```
 To stabilize the variance, we apply a Box-Cox transformation (log).
 
-```{r}
+```{r echo=TRUE}
 monthly_price_avg_tsib_transformed <- monthly_price_avg_tsib %>% 
   mutate(mean_price = log(mean_price))
 monthly_price_avg_tsib_transformed <- monthly_price_avg_tsib_transformed %>% 
@@ -277,17 +277,21 @@ components(dcmp) |> autoplot()
 ```
 
 
-```{r}
+```{r echo=TRUE}
 
 
-monthly_price_avg_tsib_transformed$is_up <- append(diff(monthly_price_avg_tsib_transformed$mean_price) > 0, FALSE)
-monthly_price_avg_tsib_transformed <- monthly_price_avg_tsib_transformed %>% mutate(is_up = case_when(is_up == TRUE ~ 1, TRUE ~ 0))
+monthly_price_avg_tsib_transformed$is_up <- append(diff(
+  monthly_price_avg_tsib_transformed$mean_price) > 0, FALSE)
+monthly_price_avg_tsib_transformed <- monthly_price_avg_tsib_transformed %>% 
+  mutate(is_up = case_when(is_up == TRUE ~ 1, TRUE ~ 0))
 
 
 monthly_price_avg_tsib_train <- subset(monthly_price_avg_tsib_transformed, 
-                                       yearMonth < yearmonth(as.Date("2022-01-01")))
+                                       yearMonth < 
+                                         yearmonth(as.Date("2022-01-01")))
 monthly_price_avg_tsib_test <- subset(monthly_price_avg_tsib_transformed, 
-                                      yearMonth >= yearmonth(as.Date("2022-01-01")))
+                                      yearMonth >= 
+                                        yearmonth(as.Date("2022-01-01")))
 ```
 
 
@@ -295,13 +299,13 @@ monthly_price_avg_tsib_test <- subset(monthly_price_avg_tsib_transformed,
 monthly_price_avg_tsib_train
 ```
 
-```{r}
+```{r echo=TRUE}
 monthly_price_avg_tsib_train %>% autoplot(mean_price)
 ```
 
 Due to the observed non-stationarity and seasonality with period 12, we take a seasonal difference.
 
-```{r}
+```{r echo=TRUE}
 monthly_price_avg_tsib_train |>
   gg_tsdisplay(difference(mean_price, 12),
                plot_type='partial', lag=36) +
@@ -309,12 +313,14 @@ monthly_price_avg_tsib_train |>
 ```
 The series is still non-stationary, and the formal KPSS test below confirms this.
 
-```{r}
-monthly_price_avg_tsib_train %>% mutate(diff_log = difference(mean_price, 12)) %>% features(diff_log, unitroot_kpss)
+```{r echo=TRUE}
+monthly_price_avg_tsib_train %>% 
+  mutate(diff_log = difference(mean_price, 12)) %>% 
+  features(diff_log, unitroot_kpss)
 ```
 We take a further first difference.
 
-```{r}
+```{r echo=TRUE}
 monthly_price_avg_tsib_train |>
   gg_tsdisplay(difference(mean_price, 12) |> difference(),
                plot_type='partial', lag=36) +
@@ -325,8 +331,10 @@ We can see now that the data are closer to stationary, despite a one or two sign
 
 A formal test of stationarity using KPSS unit root test is applied below, and the insignificant result implies that we do not reject the null hypothesis that the differenced series is stationary. Hence, the series is stationary.
 
-```{r}
-monthly_price_avg_tsib_train %>% mutate(diff_log = difference(mean_price, 12)) %>% mutate(diff_log = difference(diff_log)) %>% features(diff_log, unitroot_kpss)
+```{r echo=TRUE}
+monthly_price_avg_tsib_train %>% mutate(diff_log = 
+                                          difference(mean_price, 12)) %>% 
+  mutate(diff_log = difference(diff_log)) %>% features(diff_log, unitroot_kpss)
 ```
 
 
@@ -334,9 +342,10 @@ monthly_price_avg_tsib_train %>% mutate(diff_log = difference(mean_price, 12)) %
 Models to use: NAIVE, ARIMA, SARIMA
 
 We'll start off with a simple forecasting method - the NAIVE method. Using this method, we set the forecasts to be the value of the last observation, a method that works surprisingly well in economics and finance.
+We'll also add ARIMA models with a range of parameters. The range covers reasonable values we would expect based on our exploratory data analysis of the ACF, PACF, and STL decomposition plots. Note that the SARIMA models result from ARIMA() calls that use the PDQ() function. ARIMA() calls without PDQ() but still use pdq() reduce to ordinary ARIMA models.
 
 
-```{r}
+```{r echo=TRUE}
 install.packages('forecast')
 library(forecast)
 library(fable)
@@ -350,13 +359,14 @@ model_comp <- monthly_price_avg_tsib_train %>%
         auto_bic_mod = ARIMA(mean_price ~ pdq(0:10, 1:2, 0:10) + 
                                                   PDQ(0:2,0:1,0), ic="bic", 
                                                   stepwise=F, greedy=F),
+        arima_mod = ARIMA(mean_price ~ 0 + pdq(0:3,1, 0:3)),
         random_walk_mod = NAIVE(mean_price)
         )
 model_comp
 ```
 
 
-```{r}
+```{r echo=TRUE}
 model_comp %>%
   augment() %>%
   ACF(.resid) %>%
@@ -364,7 +374,7 @@ model_comp %>%
 ```
 
 
-```{r}
+```{r echo=TRUE}
 model_comp %>%
   augment() %>%
   filter(.model == "model_1") %>%
@@ -372,7 +382,7 @@ model_comp %>%
   as.ts() %>%
   Box.test(., lag=10, type="Ljung-Box")
 ```
-```{r}
+```{r echo=TRUE}
 model_comp %>%
   augment() %>%
   filter(.model == "model_2") %>%
@@ -380,7 +390,7 @@ model_comp %>%
   as.ts() %>%
   Box.test(., lag=10, type="Ljung-Box")
 ```
-```{r}
+```{r echo=TRUE}
 model_comp %>%
   augment() %>%
   filter(.model == "auto_aic_mod") %>%
@@ -407,7 +417,7 @@ model_comp %>%
   Box.test(., lag=10, type="Ljung-Box")
 ```
 
-```{r}
+```{r echo=TRUE}
 new_apple_stock <- new_data(monthly_price_avg_tsib_train, 22)
 new_apple_stock
 model_comp %>% forecast(new_apple_stock, h=22) %>% 
@@ -416,7 +426,16 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
        title = "Forecasts of Log Apple Stock 
        Prices Along with Historical Data (Model 1)")
 ```
-```{r}
+```{r echo=TRUE}
+model_comp %>% forecast(new_apple_stock, h=22) %>% 
+  filter(.model == "arima_mod") %>% autoplot(monthly_price_avg_tsib_train) + 
+  labs(x = "Date", y = "Logged Apple Stock Price",
+       title = "Forecasts of Log Apple Stock 
+       Prices Along with Historical Data (ARIMA Model)")
+```
+
+
+```{r echo=TRUE}
 reference_data <- monthly_price_avg_tsib_train %>% mutate(mean_price = exp(mean_price))
 reference_data
 
@@ -428,7 +447,7 @@ new_apple_stock
 We need to use fable object before autoplot when making a plots of forecasts along with historical data.
 When we transform log values back to their original values, we must also back-transform the probability distribution that is created in the fable object, as that probability distribution is centered around the log transformed forecast value.
 
-```{r}
+```{r echo=TRUE}
 
 model_comp %>% forecast(new_apple_stock, h=22) %>% 
   filter(.model == "model_1") %>% 
@@ -439,7 +458,7 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
        Stock Prices Along with Historical Data (Model 1)")
 ```
 
-```{r}
+```{r echo=TRUE}
 model_comp
 
 
@@ -449,7 +468,7 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
 ```
 
 
-```{r}
+```{r echo=TRUE}
 model_comp %>% forecast(new_apple_stock, h=22) %>% 
   filter(.model == "model_2") %>% 
   autoplot(monthly_price_avg_tsib_train) + 
@@ -457,7 +476,7 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
        title = "Forecasts of Log Apple Stock 
        Prices Along with Historical Data (Model 2)")
 ```
-```{r}
+```{r echo=TRUE}
 model_comp %>% forecast(new_apple_stock, h=22) %>% 
   filter(.model == "model_2") %>% 
   mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
@@ -465,7 +484,7 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
        title = "Forecasts of Apple Stock Prices 
        Along with Historical Data (Model 2)")
 ```
-```{r}
+```{r echo=TRUE}
 model_comp %>% forecast(new_apple_stock, h=22) %>% 
   filter(.model == "auto_aic_mod") %>% 
   autoplot(monthly_price_avg_tsib_train) + labs(x = "Date", 
@@ -474,7 +493,7 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
        Along with Historical Data (Best Model by AIC)")
 ```
 
-```{r}
+```{r echo=TRUE}
 
 model_comp %>% forecast(new_apple_stock, h=22) %>% 
   filter(.model == "auto_aic_mod") %>% 
@@ -483,7 +502,7 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
        title = "Forecasts of Apple Stock Prices 
        Along with Historical Data (Best Model by AIC)")
 ```
-```{r}
+```{r echo=TRUE}
 model_comp %>% forecast(new_apple_stock, h=22) %>% 
   filter(.model == "auto_bic_mod") %>% 
   autoplot(monthly_price_avg_tsib_train) + 
@@ -493,7 +512,7 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
 ```
 
 
-```{r}
+```{r echo=TRUE}
 
 model_comp %>% forecast(new_apple_stock, h=22) %>% 
   filter(.model == "auto_bic_mod") %>% 
@@ -502,7 +521,7 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
        title = "Forecasts of Apple Stock Prices Along 
        with Historical Data (Best Model by BIC)")
 ```
-```{r}
+```{r echo=TRUE}
 model_comp %>% forecast(new_apple_stock, h=22) %>% 
   filter(.model == "random_walk_mod") %>% 
   autoplot(monthly_price_avg_tsib_train) + 
@@ -511,7 +530,7 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
        Along with Historical Data (Random Walk Model)")
 ```
 
-```{r}
+```{r echo=TRUE}
 model_comp %>% forecast(new_apple_stock, h=22) %>% 
   filter(.model == "random_walk_mod") %>% 
   mutate(.mean = exp(.mean), mean_price = exp(mean_price)) %>% 
@@ -520,26 +539,16 @@ model_comp %>% forecast(new_apple_stock, h=22) %>%
        with Historical Data (Random Walk Model)")
 ```
 
-```{r}
+```{r echo=TRUE}
 model_forecasts <- model_comp %>% forecast(new_apple_stock, h=22) %>%
   mutate(.mean = exp(.mean), mean_price = exp(mean_price))
 model_forecasts
 ```
 
-```{r}
-model_comp %>% forecast(reference_years, h = 84) %>% 
-  filter(.model == "auto_aic_mod") %>% 
-  autoplot(monthly_price_avg_tsib_train) + 
-  labs(x = "Date", y = "Logged Apple Stock Price",
-       title = "Forecasts of Log Apple Stock Prices 
-       Along with Historical Data (Best Model by AIC)")
+Compare the RMSE of the different time series models we've created.
 
 
-```
-
-
-
-```{r}
+```{r echo=TRUE}
 
 monthly_price_avg_tsib %>% autoplot(mean_price)
 
@@ -547,36 +556,57 @@ comparison_data <- monthly_price_avg_tsib %>% select(mean_price)
 comparison_data
 accuracy(model_forecasts, comparison_data)
 ```
+Besides the random walk model, the ARIMA model has the lowest RMSE of 28.86. However, we note the tradeoff in its inability to capture seasonality compared to the next best time series model - the SARIMA(1,1,1)(2,0,0)[12] model chosen by the AIC. The ARIMA model produces a flat forecast line, while the SARIMA model appears to produce forecasts that better resemble a natural progression of the time series. Hence, we proceed with comparing forecasts from both models when predicting direction of the stock prices below.
 
-
-```{r}
-
-aic_mod_forecasts
-monthly_price_avg_tsib_train
-```
+Comparing both the ARIMA and SARIMA models, both forecast the direction of the Apple stock prices with 50% accuracy.
 
 
 
-```{r}
-future_compare <- monthly_price_avg_tsib_test %>% mutate(mean_price = exp(mean_price))
-append(as.numeric(diff(future_compare$mean_price) > 0), 0) == future_compare$is_up
+```{r echo=TRUE}
+future_compare <- monthly_price_avg_tsib_test %>% 
+  mutate(mean_price = exp(mean_price))
+append(as.numeric(diff(
+  future_compare$mean_price) > 0), 0) == future_compare$is_up
 
-aic_mod_forecasts <- model_forecasts %>% filter(.model == "auto_aic_mod") %>% as_tibble() %>% select(yearMonth, .mean)
-aic_mod_forecasts$is_up <- as.numeric(append(diff(aic_mod_forecasts$.mean) > 0, 0))
+aic_mod_forecasts <- model_forecasts %>% filter(.model == "auto_aic_mod") %>% 
+  as_tibble() %>% select(yearMonth, .mean)
+aic_mod_forecasts$is_up <- as.numeric(append(diff(aic_mod_forecasts$.mean) > 
+                                               0, 0))
 aic_mod_forecasts$is_up
-sum(aic_mod_forecasts$is_up == future_compare$is_up) / length(aic_mod_forecasts$is_up)
+sum(aic_mod_forecasts$is_up == 
+      future_compare$is_up) / length(aic_mod_forecasts$is_up)
 
 ```
 
 
+```{r echo=TRUE}
+future_compare <- monthly_price_avg_tsib_test %>% 
+  mutate(mean_price = exp(mean_price))
+append(as.numeric(diff(future_compare$mean_price) > 0), 0) == 
+  future_compare$is_up
 
-```{r}
+arima_mod_forecasts <- model_forecasts %>% filter(.model == "arima_mod") %>% 
+  as_tibble() %>% select(yearMonth, .mean)
+arima_mod_forecasts$is_up <- as.numeric(append(diff(
+  arima_mod_forecasts$.mean) > 0, 0))
+arima_mod_forecasts$is_up
+sum(arima_mod_forecasts$is_up == 
+      future_compare$is_up) / length(arima_mod_forecasts$is_up)
+```
+
+
+
+```{r echo=TRUE}
 model_forecasts %>% filter(.model == "random_walk_mod")
 
-rand_walk_mod_forecasts <- model_forecasts %>% filter(.model == "random_walk_mod") %>% as_tibble() %>% select(yearMonth, .mean)
-rand_walk_mod_forecasts$is_up <- as.numeric(append(diff(rand_walk_mod_forecasts$.mean) > 0, 0))
+rand_walk_mod_forecasts <- model_forecasts %>% filter(.model == 
+                                                        "random_walk_mod") %>% 
+  as_tibble() %>% select(yearMonth, .mean)
+rand_walk_mod_forecasts$is_up <- as.numeric(append(diff(
+  rand_walk_mod_forecasts$.mean) > 0, 0))
 rand_walk_mod_forecasts$is_up
-sum(rand_walk_mod_forecasts$is_up == future_compare$is_up) / length(rand_walk_mod_forecasts$is_up)
+sum(rand_walk_mod_forecasts$is_up == 
+      future_compare$is_up) / length(rand_walk_mod_forecasts$is_up)
 
 ```
 
